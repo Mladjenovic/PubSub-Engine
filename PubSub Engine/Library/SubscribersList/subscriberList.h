@@ -36,7 +36,7 @@ struct list {
 
 typedef struct list List;
 void initlist(List *); /* initialize an empty list */
-void insertfront(List *, SUBSCRIBER subscriber); /* insert val at front */
+void insertfront(List *, SUBSCRIBER* subscriber); /* insert val at front */
 void insertback(List *, SUBSCRIBER subscriber); /* insert val at back */
 int length(List); /* returns list length */
 void destroy(List *); /* deletes list */

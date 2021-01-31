@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include "queue.h"
 
 
@@ -25,7 +26,6 @@ void DestructQueue(Queue *queue) {
 }
 
 int Enqueue(Queue *pQueue, NODE *item) {
-	/* Bad parameter */
 	if ((pQueue == NULL) || (item == NULL)) {
 		return FALSE;
 	}
@@ -33,22 +33,45 @@ int Enqueue(Queue *pQueue, NODE *item) {
 	if (pQueue->size >= pQueue->limit) {
 		return FALSE;
 	}
-	/*the queue is empty*/
 	item->prev = NULL;
-	if (pQueue->size == 0) {
-		pQueue->head = item;
-		pQueue->tail = item;
-	}
-	else {
-		/*adding item to the end of the queue*/
+
+	if (pQueue->tail != NULL)
 		pQueue->tail->prev = item;
-		pQueue->tail = item;
-	}
+
+	pQueue->tail = item;
+
+	if (pQueue->head == NULL)
+		pQueue->head = item;
+
 	pQueue->size++;
 	return TRUE;
+
+	///* Bad parameter */
+	//if ((pQueue == NULL) || (item == NULL)) {
+	//	return FALSE;
+	//}
+	//// if(pQueue->limit != 0)
+	//if (pQueue->size >= pQueue->limit) {
+	//	return FALSE;
+	//}
+	///*the queue is empty*/
+	//item->prev = NULL;
+	//if (pQueue->size == 0) {
+	//	pQueue->head = item;
+	//	pQueue->tail = item;
+	//}
+	//else {
+	//	/*adding item to the end of the queue*/
+	//	pQueue->tail->prev = pQueue->tail;
+	//	pQueue->tail = item;
+	//	
+	//}
+	//pQueue->size++;
+	//return TRUE;
 }
  
 NODE * Dequeue(Queue *pQueue) {
+	printf("\n%s", pQueue->head->data.message);
 	/*the queue is empty or bad param*/
 	NODE *item = NULL;
 	if (isEmpty(pQueue))
@@ -68,5 +91,13 @@ int isEmpty(Queue* pQueue) {
 	}
 	else {
 		return FALSE;
+	}
+}
+
+void PrintQueue(Queue *queue) {
+	NODE* current = queue->head;
+	while (current != NULL) {
+		printf("%s | ", current->data.message);
+		current = current->prev;
 	}
 }

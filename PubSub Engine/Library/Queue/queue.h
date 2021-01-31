@@ -7,7 +7,7 @@
 
 /* a link in the queue, holds the info and point to the next Node*/
 typedef struct {
-	char* message;
+	char message[256];
 } DATA;
 
 typedef struct Node_t {
@@ -28,5 +28,6 @@ void DestructQueue(Queue *queue);
 int Enqueue(Queue *pQueue, NODE *item);
 NODE *Dequeue(Queue *pQueue);
 int isEmpty(Queue* pQueue);
+void PrintQueue(Queue *queue);
 
 #endif /* _QUEUE_H */

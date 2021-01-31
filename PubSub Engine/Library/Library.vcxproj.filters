@@ -47,5 +47,8 @@
     <ClInclude Include="Structures\SubscriberThreadStruct.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Structures\ConcreteSubscriberStruct.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

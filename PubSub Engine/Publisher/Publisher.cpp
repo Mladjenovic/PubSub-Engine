@@ -24,9 +24,6 @@
 #define SERVER_PORT 16000
 #define BUFFER_SIZE 256
 
-
-
-
 int NetworkCommunication();
 
 void main()
@@ -38,7 +35,6 @@ void main()
 
 int NetworkCommunication()
 {
-
 	// Socket used to communicate with server
 	SOCKET connectSocket = INVALID_SOCKET;
 
@@ -103,7 +99,7 @@ int NetworkCommunication()
 		case 1:
 			printf("\nSelect topic: \n");
 			printf("-------------------------------------------------------------\n");
-			printf("1) Music\n2) Movies\n3) Sports\n4) Kids\n5) News\n6) Trending");
+			printf("1) Music\n2) Movies\n3) Sports\n4) Kids\n5) News\n6) Trending\n7) Send milion messages");
 			printf("\n-------------------------------------------------------------");
 
 			scanf_s("%d", &selectedTopic, BUFFER_SIZE);
@@ -117,12 +113,14 @@ int NetworkCommunication()
 				publisher.topicID = 1;
 
 				printf("\nEnter message:\n");
-				scanf_s("%s", publisher.message, 128);
 
-				//sprintf_s(publisher.message, BUFFER_SIZE, "%s", dataBuffer);
+				while ((getchar()) != '\n');
+
+				fgets(publisher.message, 256, stdin);
+
 				// Send message to server using connected socket
 
-				iResult = send(connectSocket, (char*)&publisher, sizeof(PUBLISHER), 0);
+ 				iResult = send(connectSocket, (char*)&publisher, sizeof(PUBLISHER), 0);
 
 				// Check result of send function
 				if (iResult == SOCKET_ERROR)
@@ -139,7 +137,10 @@ int NetworkCommunication()
 				publisher.topicID = 2;
 
 				printf("\nEnter message:\n");
-				scanf_s("%s", publisher.message, 128);
+
+				while ((getchar()) != '\n');
+				fgets(publisher.message, 256, stdin);
+
 
 				// Send message to server using connected socket
 				iResult = send(connectSocket, (char*)&publisher, sizeof(PUBLISHER), 0);
@@ -160,7 +161,9 @@ int NetworkCommunication()
 				publisher.topicID = 3;
 
 				printf("\nEnter message:\n");
-				scanf_s("%s", publisher.message, 128);
+
+				while ((getchar()) != '\n');
+				fgets(publisher.message, 256, stdin);
 
 
 				// Send message to server using connected socket
@@ -181,7 +184,10 @@ int NetworkCommunication()
 				publisher.topicID = 4;
 
 				printf("\nEnter message:\n");
-				scanf_s("%s", publisher.message, 128);
+
+				while ((getchar()) != '\n');
+				fgets(publisher.message, 256, stdin);
+
 
 				// Send message to server using connected socket
 				iResult = send(connectSocket, (char*)&publisher, sizeof(PUBLISHER), 0);
@@ -201,8 +207,9 @@ int NetworkCommunication()
 				publisher.topicID = 5;
 
 				printf("\nEnter message:\n");
-				scanf_s("%s", publisher.message, 128);
 
+				while ((getchar()) != '\n');
+				fgets(publisher.message, 256, stdin);
 
 
 				// Send message to server using connected socket
@@ -226,7 +233,6 @@ int NetworkCommunication()
 				scanf_s("%s", publisher.message, 128);
 
 
-
 				// Send message to server using connected socket
 				iResult = send(connectSocket, (char*)&publisher, sizeof(PUBLISHER), 0);
 
@@ -240,6 +246,28 @@ int NetworkCommunication()
 				}
 
 				break;
+			case 7:
+
+				publisher.topicID = 1;
+				for (int i = 0; i <= 1000000; i++)
+				{
+					//sprintf(publisher.message, "Poruka %d", i);
+					sprintf(publisher.message, "Poruka %d", i);
+
+					iResult = send(connectSocket, (char*)&publisher, sizeof(PUBLISHER), 0);
+
+					// Check result of send function
+					if (iResult == SOCKET_ERROR)
+					{
+						printf("send failed with error: %d\n", WSAGetLastError());
+						closesocket(connectSocket);
+						WSACleanup();
+						return 1;
+					}
+					Sleep(50);
+				}
+				break;
+
 			default:
 				printf("Option does not exist\n");
 				break;
@@ -275,81 +303,3 @@ int NetworkCommunication()
 		}
 	}
 }
-
-//void Something()
-//{
-//	//Ovaj deo nam ne treba. al neka stoji da bi iskoristili za prijem poruka kod PubsubEngine -> Subscriber
-//	//	fd_set readfds;
-//	//	FD_ZERO(&readfds);
-//	//	FD_SET(connectSocket, &readfds);
-//
-//	//	timeval timeVal;
-//	//	timeVal.tv_sec = 1;
-//	//	timeVal.tv_usec = 0;
-//
-//	//	int result = select(0, &readfds, NULL, NULL, &timeVal);
-//
-//	//	if (result == 0)
-//	//	{
-//	//		// vreme za cekanje je isteklo
-//	//	}
-//	//	else if (result == SOCKET_ERROR)
-//	//	{
-//	//		//desila se greska prilikom poziva funkcije
-//	//	}
-//	//	else
-//	//	{
-//	//		if (FD_ISSET(connectSocket, &readfds))
-//	//		{
-//	//			iResult = recv(connectSocket, dataBuffer, BUFFER_SIZE, 0);
-//
-//	//			if (iResult > 0)	// Check if message is successfully received
-//	//			{
-//	//				dataBuffer[iResult] = '\0';
-//
-//	//				printf("Server sent: %s.\n", dataBuffer);
-//
-//
-//	//			}
-//	//			else if (iResult == 0)	// Check if shutdown command is received
-//	//			{
-//	//				// Connection was closed successfully
-//	//				printf("Connection with client closed.\n");
-//	//				closesocket(connectSocket);
-//	//			}
-//	//			else	// There was an error during recv
-//	//			{
-//
-//	//				printf("recv failed with error: %d\n", WSAGetLastError());
-//	//				closesocket(connectSocket);
-//	//			}
-//	//		}
-//	//	}
-//
-//	//	FD_CLR(connectSocket, &readfds);
-//	//}
-
-
-
-	// iznad ovog je connect
-
-	//// Predstavljanje
-
-	//sprintf_s(dataBuffer, BUFFER_SIZE, "%d|%d", 0, 45);
-
-
-	//printf("DataBuffer: %s\n", dataBuffer);
-
-	//// Send message to server using connected socket
-	//iResult = send(connectSocket, dataBuffer, (int)strlen(dataBuffer), 0);
-
-	//// Check result of send function
-	//if (iResult == SOCKET_ERROR)
-	//{
-	//	printf("send failed with error: %d\n", WSAGetLastError());
-	//	closesocket(connectSocket);
-	//	WSACleanup();
-	//	return 1;
-	//}
-
-//}

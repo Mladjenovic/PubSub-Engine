@@ -132,6 +132,7 @@
   <ItemGroup>
     <ClInclude Include="List\list.h" />
     <ClInclude Include="Queue\queue.h" />
+    <ClInclude Include="Structures\ConcreteSubscriberStruct.h" />
     <ClInclude Include="Structures\SubscriberThreadStruct.h" />
     <ClInclude Include="SubscribersList\subscriberList.h" />
     <ClInclude Include="Topic\topic.h" />

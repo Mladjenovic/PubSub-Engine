@@ -7,13 +7,13 @@ void initlist(List *ilist) {
 	ilist->head = 0;
 }
 
-void insertfront(List *ilist, SUBSCRIBER sub) {
+void insertfront(List *ilist, SUBSCRIBER* sub) {
 	Listitem *newitem;
 	newitem = (Listitem *)malloc(sizeof(Listitem));
 	newitem->next = ilist->head;
-	newitem->subscriber.port = sub.port;
-	newitem->subscriber.address = sub.address;
-	newitem->subscriber.acceptedSocket= sub.acceptedSocket;
+	newitem->subscriber.port = sub->port;
+	newitem->subscriber.address = sub->address;
+	newitem->subscriber.acceptedSocket= sub->acceptedSocket;
 	ilist->head = newitem;
 }
 
@@ -99,20 +99,20 @@ int getitem(List ilist, int n) {
 }
 
 void displaylist(List* list) {
-	List *temp;
+	List temp;
 	if (list == NULL)
 	{
 		printf(" List is empty.");
 	}
 	else
 	{
-		temp = list;
-		while (temp->head != NULL)
+		temp = *list;
+		while (temp.head != NULL)
 		{
-			printf("%s : %d ", temp->head->subscriber.address,
-				temp->head->subscriber.port);       // prints the data of current node
+			printf("%s : %d ", temp.head->subscriber.address,
+				temp.head->subscriber.port);       // prints the data of current node
 
-			temp->head = temp->head->next;         // advances the position of current node
+			temp.head = temp.head->next;         // advances the position of current node
 		}
 	}
 }

@@ -23,7 +23,85 @@
 #define BUFFER_SIZE 256
 
 int NetworkCommunication();
-void menu();
+
+DWORD WINAPI processingPubSubEngine(LPVOID par)
+{
+	SOCKET connectedSocket = (SOCKET)par;
+
+	char dataBuffer[BUFFER_SIZE];
+
+
+	while (true)
+	{
+		fd_set readfds;
+		FD_ZERO(&readfds);
+
+		// Add socket to set readfds
+		FD_SET(connectedSocket, &readfds);
+
+
+		timeval timeVal;
+		timeVal.tv_sec = 1;
+		timeVal.tv_usec = 0;
+
+		int sResult = select(0, &readfds, NULL, NULL, &timeVal);
+
+		if (sResult == 0)
+		{
+			Sleep(1000);
+		}
+		else if (sResult == SOCKET_ERROR)
+		{
+			printf("select failed with error: %d\n", WSAGetLastError());
+			break;
+		}
+		else
+		{
+			if (FD_ISSET(connectedSocket, &readfds))
+			{
+				int iResult = recv(connectedSocket, dataBuffer, BUFFER_SIZE, 0);
+				if (iResult > 0)	// Check if message is successfully received
+				{
+					dataBuffer[iResult] = '\0';
+
+					printf("%s\n", dataBuffer);
+
+				}
+				else if (iResult == 0)	// Check if shutdown command is received
+				{
+					// Connection was closed successfully
+					printf("Connection with server closed.\n");
+					//closesocket(connectedSocket);
+					break;
+				}
+				else	// There was an error during recv
+				{
+					//printf("recv failed with error: %d\n", WSAGetLastError());
+					printf("Connection with PubSubEngine closed!");
+					//closesocket(connectedSocket);
+					break;
+				}
+			}
+		}
+
+		// Receive data until the client shuts down the connection
+	}
+
+	int iResult = shutdown(connectedSocket, SD_BOTH);
+
+	// Check if connection is succesfully shut down.
+	if (iResult == SOCKET_ERROR)
+	{
+		printf("shutdown failed with error: %d\n", WSAGetLastError());
+		//closesocket(acceptedSocket);
+		//WSACleanup();
+		return 1;
+	}
+	closesocket(connectedSocket);
+
+
+	return 0;
+}
 
 void main()
 {
@@ -34,7 +112,6 @@ void main()
 
 int NetworkCommunication()
 {
-
 	// Socket used to communicate with server
 	SOCKET connectSocket = INVALID_SOCKET;
 
@@ -88,6 +165,15 @@ int NetworkCommunication()
 	}
 
 	printf("Successfully connected to PubSubEngine.\n");
+
+	// start listening thread
+
+	DWORD pubSubengineThreadID;
+	HANDLE hpubSubengine;
+
+	hpubSubengine = CreateThread(NULL, 0, &processingPubSubEngine, (LPVOID)connectSocket, 0, &pubSubengineThreadID);
+
+	// Communication loop
 
 	int answer;
 	int selectedTopic;
@@ -305,6 +391,7 @@ int NetworkCommunication()
 
 			// Close connected socket
 			closesocket(connectSocket);
+			CloseHandle(hpubSubengine);
 
 			// Deinitialize WSA library
 			WSACleanup();

@@ -2,11 +2,13 @@
 #define _TOPIC_H
 
 #include "../Queue/queue.h"
+#include "../SubscribersList/subscriberList.h"
 
 typedef struct {
 	unsigned long topicID;
 	const char* TopicName;
 	Queue* messageQueue;
+	List subscribersList;
 } TOPIC;
 
 TOPIC * initTopic();

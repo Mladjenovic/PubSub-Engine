@@ -15,6 +15,7 @@
 #include "topic.h"
 #include "SubscriberThreadStruct.h"
 #include "subscriberList.h"
+#include "../Structures/ConcreteSubscriberStruct.h"
 
 #pragma comment (lib, "Ws2_32.lib")
 #pragma comment (lib, "Mswsock.lib")
@@ -29,20 +30,54 @@
 
 CRITICAL_SECTION cs; // Section for Topic structure
 CRITICAL_SECTION cs2; // Section for subscriber list
+CRITICAL_SECTION cs3; // Section for alerting subscribers
 
 
 char* intToString(int num);
 void initializeTopics();
+void AlertSubscribers();
 
-
-/// Threads
+// Global
 
 TOPIC* topics[6];
-List subscribersList;
+List subscribersList;  
 
 
 
-DWORD WINAPI processingPublisher(LPVOID par)
+DWORD WINAPI alertingSubscribers(LPVOID par) {
+
+	EnterCriticalSection(&cs3);
+
+	AlertSubscribers();
+
+	LeaveCriticalSection(&cs3);
+
+	return 0;
+}
+
+DWORD WINAPI alertConcreteSubscriber(LPVOID par) {
+
+	SOCKET acceptedSocket = ((CONCRETE_SUBSCIBER*)par)->acceptedSocket;
+	
+	char mess[BUFFER_SIZE];
+	sprintf(mess, "%s", ((CONCRETE_SUBSCIBER*)par)->message);
+
+	// salji svakom pojedinacno
+	int iResult = send(acceptedSocket, (char*)mess, (int)strlen(mess), 0);
+
+	// Check result of send function
+	if (iResult == SOCKET_ERROR)
+	{
+		printf("send failed with error: %d\n", WSAGetLastError());
+		closesocket(acceptedSocket);
+		WSACleanup();
+		return 1;
+	}
+
+	return 0;
+}
+
+DWORD WINAPI processingPublisher(LPVOID par)  
 {
 	SOCKET acceptedSocket = (SOCKET)par;
 	unsigned long mode = 1;
@@ -87,66 +122,57 @@ DWORD WINAPI processingPublisher(LPVOID par)
 			if (FD_ISSET(acceptedSocket, &readfds))
 			{
 				int iResult = recv(acceptedSocket, dataBuffer, BUFFER_SIZE, 0);
-
 				if (iResult > 0)	// Check if message is successfully received
 				{
 					dataBuffer[iResult] = '\0';
+
 					PUBLISHER* publisher = (PUBLISHER*)&dataBuffer;
+
 
 					EnterCriticalSection(&cs);
 
-					printf("Publisher sent: %d, %s\n", publisher->topicID, publisher->message);
+					int topicID = publisher->topicID;
+					char mess[BUFFER_SIZE];
+
+					sprintf(mess, "%s", publisher->message);
+
+					printf("Publisher sent: %d, %s\n", topicID, mess);
 					NODE* messageNode = (NODE*)malloc(sizeof(NODE));
-					messageNode->data.message = publisher->message;
-					for (int i = 0; i < 6; i++)
-					{
-						if (publisher->topicID == 1) {
-							Enqueue(topics[0]->messageQueue, messageNode);
-							break;
-						}
-						else if (publisher->topicID == 2) {
-							Enqueue(topics[1]->messageQueue, messageNode);
-							break;
-						}
-						else if (publisher->topicID == 3) {
-							Enqueue(topics[2]->messageQueue, messageNode);
-							break;
-						}
-						else if (publisher->topicID == 4) {
-							Enqueue(topics[3]->messageQueue, messageNode);
-							break;
-						}
-						else if (publisher->topicID == 5) {
-							Enqueue(topics[4]->messageQueue, messageNode);
-							break;
-						}
-						else if (publisher->topicID == 6) {
-							Enqueue(topics[5]->messageQueue, messageNode);
-							break;
-						}
-					}
+					strcpy(messageNode->data.message, mess);
+
+					Enqueue(topics[topicID - 1]->messageQueue, messageNode);
+
+					PrintQueue(topics[topicID - 1]->messageQueue);
 
 					LeaveCriticalSection(&cs);
+					
+					// Sekcija za obavesatavanje subscribera
+
+					DWORD alertThreadID;
+					HANDLE hAlert;
+
+					hAlert = CreateThread(NULL, 0, &alertingSubscribers, (LPVOID)NULL, 0, &alertThreadID);
 
 				}
 				else if (iResult == 0)	// Check if shutdown command is received
 				{
 					// Connection was closed successfully
-					printf("Connection with client closed.\n");
+					printf("Connection with Publisher closed.\n");
 					closesocket(acceptedSocket);
+					break;
 				}
-				/*else	// There was an error during recv
-				{
-					printf("recv failed with error: %d\n", WSAGetLastError());
-					closesocket(*acceptedSocket);
-				}*/
+				//else	// There was an error during recv
+				//{
+				//	printf("recv failed with error: %d\n", WSAGetLastError());
+				//	closesocket(acceptedSocket);
+				//}
 			}
 		}
 
 		// Receive data until the client shuts down the connection
 	}
 	return 0;
-}
+} 
 
 DWORD WINAPI registerSubscriber(LPVOID par)
 {
@@ -181,6 +207,10 @@ DWORD WINAPI registerSubscriber(LPVOID par)
 		timeVal.tv_sec = 1;
 		timeVal.tv_usec = 0;
 
+		int topicID = 0;
+		SUBSCRIBER sub;
+
+
 		int sResult = select(0, &readfds, NULL, NULL, &timeVal);
 
 		if (sResult == 0)
@@ -202,24 +232,20 @@ DWORD WINAPI registerSubscriber(LPVOID par)
 				{
 					dataBuffer[iResult] = '\0';
 
-					SUBSCRIBER sub;
 					sub.address = subscriberAddress;
 					sub.port = subscriberPort;
 					sub.acceptedSocket = acceptedSocket;
 
-					EnterCriticalSection(&cs2);
+					topicID = atoi(dataBuffer);
 
-					insertfront(&subscribersList, sub);
-					displaylist(&subscribersList);
-
-					LeaveCriticalSection(&cs2);
+					insertfront(&topics[topicID - 1]->subscribersList, &sub);
 
 				}
 				else if (iResult == 0)	// Check if shutdown command is received
 				{
 					// Connection was closed successfully
 					printf("Connection with client closed.\n");
-					closesocket(acceptedSocket);
+					break;
 				}
 				/*else	// There was an error during recv
 				{
@@ -231,11 +257,22 @@ DWORD WINAPI registerSubscriber(LPVOID par)
 
 		// Receive data until the client shuts down the connection
 	}
+
+	// Shutdown the connection since we're done
+	int iResult = shutdown(acceptedSocket, SD_BOTH);
+
+	// Check if connection is succesfully shut down.
+	if (iResult == SOCKET_ERROR)
+	{
+		printf("shutdown failed with error: %d\n", WSAGetLastError());
+		//closesocket(acceptedSocket);
+		//WSACleanup();
+		return 1;
+	}
+	closesocket(acceptedSocket);
+
 	return 0;
-
-
 }
-
 
 DWORD WINAPI acceptingSubscribers(LPVOID par)
 {
@@ -289,7 +326,7 @@ DWORD WINAPI acceptingSubscribers(LPVOID par)
 	printf("Server socket is set to listening mode. Waiting for new Subscribers.\n");
 
 	SUBSCRIBER_THREAD* subscriberParam = (SUBSCRIBER_THREAD*)malloc(sizeof(SUBSCRIBER_THREAD));
-
+		
 	do
 	{
 		sockaddr_in subscriberAddr;
@@ -305,10 +342,25 @@ DWORD WINAPI acceptingSubscribers(LPVOID par)
 			printf("accept failed with error: %d\n", WSAGetLastError());
 			closesocket(listenSocket);
 			closesocket(acceptedSocket);
-			WSACleanup();
-			return 1;
+			//WSACleanup();
+			break;
 		}
 		printf("\nNew Subscriber request accepted. Subscriber address: %s : %d\n", inet_ntoa(subscriberAddr.sin_addr), ntohs(subscriberAddr.sin_port));
+
+		
+		SUBSCRIBER* subscriber = (SUBSCRIBER* )malloc(sizeof(SUBSCRIBER));
+		subscriber->acceptedSocket = acceptedSocket;
+		subscriber->address = inet_ntoa(subscriberAddr.sin_addr);
+		subscriber->port = ntohs(subscriberAddr.sin_port);
+
+
+		// Dodavanje subescribera u globalnu listu subscribera
+		EnterCriticalSection(&cs2);
+
+		insertfront(&subscribersList, subscriber);
+
+		LeaveCriticalSection(&cs2);
+
 
 		subscriberParam->address = inet_ntoa(subscriberAddr.sin_addr);
 		subscriberParam->port = ntohs(subscriberAddr.sin_port);
@@ -317,26 +369,49 @@ DWORD WINAPI acceptingSubscribers(LPVOID par)
 		DWORD regSubID;
 		HANDLE hRegSub;
 
-		// Sada ide thread da u kome ce da se izdvoji logika registrovanje (dodavanje u listu subscribera) prosledjivace se struktura sa (subscriberAddr.sin_addr i subscriberAddr.sin_port)
-		// A u tredu ce se primati na koji topic hoce + kredencijali (add i port) iz strukture
-
 		hRegSub = CreateThread(NULL, 0, &registerSubscriber, (LPVOID)subscriberParam, 0, &regSubID);
 										
-
 	} while (true);
-}
 
+
+	// Shutdown the connection since we're done
+	iResult = shutdown(acceptedSocket, SD_BOTH);
+
+	if (iResult == SOCKET_ERROR)
+	{
+		printf("shutdown failed with error: %d\n", WSAGetLastError());
+		closesocket(listenSocket);
+		closesocket(acceptedSocket);
+		//WSACleanup();
+		return 1;
+	}
+
+	iResult = shutdown(listenSocket, SD_BOTH);
+
+	// Check if connection is succesfully shut down.
+	if (iResult == SOCKET_ERROR)
+	{
+		printf("shutdown failed with error: %d\n", WSAGetLastError());
+		closesocket(listenSocket);
+		closesocket(acceptedSocket);
+		//WSACleanup();
+		return 1;
+	}
+
+	free(subscriberParam);
+	closesocket(acceptedSocket);
+	closesocket(listenSocket);
+
+}
 
 int main()
 {
-
 	initializeTopics();
 	InitializeCriticalSection(&cs);
 	InitializeCriticalSection(&cs2);
+	InitializeCriticalSection(&cs3);
 
 	initlist(&subscribersList);
-
-
 
 	// Socket used for listening for new clients 
 	SOCKET listenSocket = INVALID_SOCKET;
@@ -444,10 +519,6 @@ int main()
 
 		hClient = CreateThread(NULL, 0, &processingPublisher, (LPVOID)acceptedSocket, 0, &threadID);
 
-		//// Treba dodati handlove u neku listu pa onda iterirati kroz nju i oslobadnjati svaki pojedinacan element sa CloseHandle
-		////CloseHandle(hClient);
-
-
 	} while (true);
 
 	// Shutdown the connection since we're done
@@ -459,6 +530,7 @@ int main()
 		printf("shutdown failed with error: %d\n", WSAGetLastError());
 		closesocket(listenSocket);
 		closesocket(acceptedSocket);
+		closesocket(connectSocket);
 		WSACleanup();
 		return 1;
 	}
@@ -466,43 +538,86 @@ int main()
 	//Close listen and accepted sockets
 	closesocket(listenSocket);
 	closesocket(acceptedSocket);
+	closesocket(connectSocket);
+
+	// Destroying all lists that were alocated in the memory
+	destroy(&subscribersList); 
+
+	for (int i = 0; i < 6; i++)
+	{
+		destroy(&topics[i]->subscribersList);
+	}
 
 	// Deinitialize WSA library
 	WSACleanup();
 
 	return 0;
+}
 
+void AlertSubscribers()
+{
+	NODE *pN;
+	List* list;
+	List temp;
 
-	/*for (int i = 0; i < 6; i++)
+	for (int i = 0; i < 6; i++)
 	{
-		printf("%s\n", topics[i]->TopicName);
-	}*/
+		while (!isEmpty(topics[i]->messageQueue))
+		{
+			// isprazni element
+			pN = Dequeue(topics[i]->messageQueue);
+			char mess[BUFFER_SIZE];
+			strcpy(mess, pN->data.message);
 
+			char fullMessage[BUFFER_SIZE];
 
-	//TOPIC* t = initTopic();
+			switch (i + 1)
+			{
+			case 1:
+				sprintf(fullMessage, "Music: %s", mess);
+				break;
+			case 2:
+				sprintf(fullMessage, "Movies: %s", mess);
+				break;
+			case 3:
+				sprintf(fullMessage, "Sports: %s", mess);
+				break;
+			case 4:
+				sprintf(fullMessage, "Kids: %s", mess);
+				break;
+			case 5:
+				sprintf(fullMessage, "News: %s", mess);
+				break;
+			case 6:
+				sprintf(fullMessage, "Trending: %s", mess);
+				break;
+			default:
+				printf("\n!!!ERROR!!!\n");
+				return;
+			}
 
-	//t->messageQueue = ConstructQueue();
-	//NODE *pN;
-	//
-	//char* result;
+			// posalji ga svim subscriberima
+			list = &topics[i]->subscribersList;
+			temp = *list;
+			while (temp.head != NULL)
+			{
+				//alertConcreteSubscriber
 
-	//for (int i = 0; i < 10; i++)
-	//{
-	//	result = intToString(i);
-	//	pN = (NODE*)malloc(sizeof(NODE));
-	//	storeMessageToQueue(t, result, pN);
-	//}
+				CONCRETE_SUBSCIBER* sub = (CONCRETE_SUBSCIBER*)malloc(sizeof(CONCRETE_SUBSCIBER));
+				sub->acceptedSocket = temp.head->subscriber.acceptedSocket;
 
-	//while (!isEmpty(t->messageQueue)) {
-	//	pN = Dequeue(t->messageQueue);
-	//	printf("\nDequeued: %s", pN->data.message);
-	//	free(pN->data.message); // Oslobadanje zauzete memorije za result!
-	//	free(pN);
-	//}
-	//DestructQueue(t->messageQueue);
-	//printf("\n\n%s\n", result);
+				sprintf(sub->message, "%s", fullMessage);
 
-	//return (EXIT_SUCCESS);
+				DWORD concreteSubscriberID;
+				HANDLE hConcreteSubscriber;
+
+				hConcreteSubscriber = CreateThread(NULL, 0, &alertConcreteSubscriber, (LPVOID)sub, 0, &concreteSubscriberID);
+
+				
+				temp.head = temp.head->next;         // advances the position of current node
+			}
+		}
+	}
 }
 
 char* intToString(int num)
@@ -519,6 +634,7 @@ void initializeTopics()
 		topics[i] = initTopic();
 		topics[i]->topicID = i + 1;
 		topics[i]->messageQueue = ConstructQueue();
+		initlist(&topics[i]->subscribersList);
 	}
 
 	topics[0]->TopicName = "Music";
